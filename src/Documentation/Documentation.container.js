@@ -1,19 +1,62 @@
 import React, { Component } from 'react';
+import { gql, graphql } from 'react-apollo';
+
 import DocumentationComponent from './Documentation.component';
 
-const data = {
-  name: 'Test',
-  description: 'Lorem ipsum',
-  documents: [
-    { title: 'Foo', tags: ['foo', 'not-bar'], content: '<p>foo foo foo</p>' },
-    { title: 'Bar', tags: ['bar', 'not-foo'], content: '<i>bar bar bar</i>' },
-  ],
-};
-
 class Documentation extends Component {
+  componentWillMount(){
+    this.props.subscribeToDocumentationChanges();
+  }
   render() {
-    return <DocumentationComponent {...data} />;
+    const { data } = this.props;
+    if (!data.documentation) return <p>Loading...</p>;
+    return <DocumentationComponent {...data.documentation} />;
   }
 }
 
-export default Documentation;
+const DOCUMENTATION_QUERY = gql`
+  query Documentation {
+    documentation {
+      name
+      description
+      documents {
+        title
+        tags
+        content
+      }
+    }
+  }
+`;
+
+const DOCUMENTATION_SUBSCRIPTION = gql`
+  subscription onDocumentationChanged {
+    changedDocumentation {
+      name
+      description
+      documents {
+        title
+        tags
+        content
+      }
+    }
+  }
+`;
+
+const withData = graphql(DOCUMENTATION_QUERY, {
+  props: props => ({
+    ...props,
+    subscribeToDocumentationChanges: () =>
+      props.data.subscribeToMore({
+        document: DOCUMENTATION_SUBSCRIPTION,
+        updateQuery: (prev, { subscriptionData }) => {
+          if (!subscriptionData.data) return prev;
+          return {
+            ...prev,
+            documentation: subscriptionData.data.changedDocumentation,
+          };
+        },
+      }),
+  }),
+});
+
+export default withData(Documentation);
